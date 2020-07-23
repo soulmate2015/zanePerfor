@@ -1,94 +1,93 @@
-'use strict';
-const Service = require('egg').Service;
+'use strict'
+const Service = require('egg').Service
 
 class SendEmailService extends Service {
+  constructor (params) {
+    super(params)
+    this.daliy = {}
+  }
 
-    constructor(params) {
-        super(params);
-        this.daliy = {};
+  // 收集每日日报数据
+  async getDaliyDatas (data, type) {
+    const config = this.app.config.email.client
+    if (!((config.host && config.port && typeof (config.secure) === 'boolean') || config.service) || !config.auth) return
+    if (!data.appId) return
+
+    if (!this.daliy[data.appId]) this.daliy[data.appId] = { pvuvip: null, toplist: null }
+    this.daliy[data.appId][type] = data
+
+    if (this.daliy[data.appId].pvuvip && this.daliy[data.appId].toplist) {
+      this.sendDaliyEmail()
     }
+  }
 
-    // 收集每日日报数据
-    async getDaliyDatas(data, type) {
-        const config = this.app.config.email.client;
-        if (!((config.host && config.port && typeof (config.secure) === 'boolean') || config.service) || !config.auth) return;
-        if (!data.appId) return;
-
-        if (!this.daliy[data.appId]) this.daliy[data.appId] = { pvuvip: null, toplist: null };
-        this.daliy[data.appId][type] = data;
-
-        if (this.daliy[data.appId].pvuvip && this.daliy[data.appId].toplist) {
-            this.sendDaliyEmail();
-        }
+  // 发送每日日报
+  async sendDaliyEmail () {
+    for (const key in this.daliy) {
+      this.sendDaliyEmailBySystem(key, this.daliy[key])
+      this.daliy[key] = null
     }
+  }
 
-    // 发送每日日报
-    async sendDaliyEmail() {
-        for (const key in this.daliy) {
-            this.sendDaliyEmailBySystem(key, this.daliy[key]);
-            this.daliy[key] = null;
-        }
+  // 根据系统ID发送邮件
+  async sendDaliyEmailBySystem (appId, datas = {}) {
+    const systemMsg = await this.ctx.service.system.getSystemForAppId(appId)
+    if (systemMsg.is_use !== 0 && systemMsg.is_daily_use !== 0) return
+    const from = systemMsg.system_name + '应用日报'
+    const to = systemMsg.daliy_list.toString()
+    const timestrap = new Date().getTime() - 86300000
+    const day = this.app.format(new Date(timestrap), 'yyyy/MM/dd') + '日日报'
+
+    datas.systemMsg = systemMsg
+    datas.day = day
+
+    const mailOptions = {
+      from: `${from}<${this.app.config.email.client.auth.user}>`,
+      to,
+      subject: day,
+      html: await this.daliyHtmlTem(datas)
     }
+    this.app.email.sendMail(mailOptions)
+  }
 
-    // 根据系统ID发送邮件
-    async sendDaliyEmailBySystem(appId, datas = {}) {
-        const systemMsg = await this.ctx.service.system.getSystemForAppId(appId);
-        if (systemMsg.is_use !== 0 && systemMsg.is_daily_use !== 0) return;
-        const from = systemMsg.system_name + '应用日报';
-        const to = systemMsg.daliy_list.toString();
-        const timestrap = new Date().getTime() - 86300000;
-        const day = this.app.format(new Date(timestrap), 'yyyy/MM/dd') + '日日报';
+  // 每日日邮件模板
+  async daliyHtmlTem (datas) {
+    const pvuvip = datas.pvuvip || {}
+    const toplist = datas.toplist || {}
+    const systemMsg = datas.systemMsg || {}
 
-        datas.systemMsg = systemMsg;
-        datas.day = day;
+    let provincehtml = ''
+    let toppageshtml = ''
+    let topjumpout = ''
+    let topbrowser = ''
 
-        const mailOptions = {
-            from: `${from}<${this.app.config.email.client.auth.user}>`,
-            to,
-            subject: day,
-            html: await this.daliyHtmlTem(datas),
-        };
-        this.app.email.sendMail(mailOptions);
+    if (toplist.provinces && toplist.provinces.length) {
+      for (let i = 0, len = toplist.provinces.length; i < len; i++) {
+        provincehtml += `<div style="display:inline-block;margin-right:20px;margin-bottom:20px;">${toplist.provinces[i]._id.province}：<span style="color:#8776f7;">${toplist.provinces[i].count}</span></div>`
+      }
     }
-
-    // 每日日邮件模板
-    async daliyHtmlTem(datas) {
-        const pvuvip = datas.pvuvip || {};
-        const toplist = datas.toplist || {};
-        const systemMsg = datas.systemMsg || {};
-
-        let provincehtml = '';
-        let toppageshtml = '';
-        let topjumpout = '';
-        let topbrowser = '';
-
-        if (toplist.provinces && toplist.provinces.length) {
-            for (let i = 0, len = toplist.provinces.length; i < len; i++) {
-                provincehtml += `<div style="display:inline-block;margin-right:20px;margin-bottom:20px;">${toplist.provinces[i]._id.province}：<span style="color:#8776f7;">${toplist.provinces[i].count}</span></div>`;
-            }
-        }
-        if (toplist.topbrowser && toplist.topbrowser.length) {
-            for (let i = 0, len = toplist.topbrowser.length; i < len; i++) {
-                topbrowser += `<div style="display:inline-block;margin-right:20px;margin-bottom:20px;">${toplist.topbrowser[i]._id.browser}：<span style="color:#8776f7;">${toplist.topbrowser[i].count}</span></div>`;
-            }
-        }
-        if (toplist.toppages && toplist.toppages.length) {
-            for (let i = 0, len = toplist.toppages.length; i < len; i++) {
-                toppageshtml += `<tr style="border:solid 1px #eee;border-collapse:collapse;">
+    if (toplist.topbrowser && toplist.topbrowser.length) {
+      for (let i = 0, len = toplist.topbrowser.length; i < len; i++) {
+        topbrowser += `<div style="display:inline-block;margin-right:20px;margin-bottom:20px;">${toplist.topbrowser[i]._id.browser}：<span style="color:#8776f7;">${toplist.topbrowser[i].count}</span></div>`
+      }
+    }
+    if (toplist.toppages && toplist.toppages.length) {
+      for (let i = 0, len = toplist.toppages.length; i < len; i++) {
+        toppageshtml += `<tr style="border:solid 1px #eee;border-collapse:collapse;">
                     <td style="font-size:13px;border:solid 1px #eee;padding:8px;">${i + 1}、${toplist.toppages[i]._id.url}</td>
                     <td style="color:#8776f7;font-size:13px;border:solid 1px #eee;padding:8px;">${toplist.toppages[i].count}</td>
-                </tr>`;
-            }
-        }
-        if (toplist.topjumpout && toplist.topjumpout.length) {
-            for (let i = 0, len = toplist.topjumpout.length; i < len; i++) {
-                topjumpout += `<tr style="border:solid 1px #eee;border-collapse:collapse;">
+                </tr>`
+      }
+    }
+    if (toplist.topjumpout && toplist.topjumpout.length) {
+      for (let i = 0, len = toplist.topjumpout.length; i < len; i++) {
+        topjumpout += `<tr style="border:solid 1px #eee;border-collapse:collapse;">
                     <td style="font-size:13px;border:solid 1px #eee;padding:8px;">${i + 1}、${toplist.topjumpout[i]._id.value}</td>
                     <td style="color:#8776f7;font-size:13px;border:solid 1px #eee;padding:8px;">${toplist.topjumpout[i].count}</td>
-                </tr>`;
-            }
-        }
-        return `<html style="margin:0;padding:0;">
+                </tr>`
+      }
+    }
+    return `<html style="margin:0;padding:0;">
             <style>*{margin:0;padding:0;}
             .block .item{}
             table.table tr:nth-child(odd) {background: #f7f9ff;}
@@ -141,8 +140,8 @@ class SendEmailService extends Service {
                     </div>
                 </div>
             </body>
-        </html>`;
-    }
+        </html>`
+  }
 }
 
-module.exports = SendEmailService;
+module.exports = SendEmailService

@@ -127,19 +127,7 @@
                     <button class="button" v-show="type===1" @click="login">立即登录</button>
                     <button class="button" v-show="type===2" @click="register">立即注册</button>
                 </div>
-                <div class="submit btns mt20">
-                    <% if( data.gh_client_id ) { %>
-                        <img @click="github" class="github_login" src="/public/img/github.png" alt="github login" title="use gitbub login.">
-                    <% } %>
-                    <% if( data.wb_client_id ) { %>
-                        <img @click="weibo" class="github_login" src="/public/img/weibo.png" alt="weibo login" title="use weibo login.">
-                    <% } %>
-                    <% if( data.wx_client_id ) { %>
-                    <img @click="wechat" class="github_login" src="/public/img/wechat.png" alt="wechat login" title="use wechat login.">
-                    <% } %>
-                    <wb:follow-button uid="2093120674" type="red_1" width="67" height="24"></wb:follow-button>
-                </div>
-                <div class="copyright">Copyright zane © 2018-2019 <a target="_blank" href="https://github.com/wangweianger">github address</a></div>
+                <!-- <div class="copyright">Copyright zane © 2018-2019 <a target="_blank" href="https://github.com/wangweianger">github address</a></div> -->
             </div>
         </div>
     </div>
